@@ -1,7 +1,7 @@
 ---
 title: "Biostat 203B Homework 2"
 subtitle: Due Feb 9 @ 11:59PM
-author: "Your NAME and UID"
+author: "Qianhui Du, UID: 006332140"
 format:
   html:
     theme: cosmo
@@ -63,9 +63,53 @@ There are quite a few utilities in R for reading plain text data files. Let us t
 
 Which function is fastest? Is there difference in the (default) parsed data types? How much memory does each resultant dataframe or tibble use? (Hint: `system.time` measures run times; `pryr::object_size` measures memory usage.) 
 
+```{r}
+file_path <- "~/mimic/hosp/admissions.csv.gz"
+```
+```{r}
+base_r_time <- system.time({
+  base_r_data <- read.csv(file_path)
+})[3]
+base_r_memory <- object_size(base_r_data)
+tidyverse_time <- system.time({
+  tidyverse_data <- read_csv(file_path)
+})[3]
+tidyverse_memory <- object_size(tidyverse_data)
+data_table_time <- system.time({
+  data_table_data <- fread(file_path)
+})[3]
+data_table_memory <- object_size(data_table_data)
+```
+```{r}
+cat("Base R Time:", base_r_time, "\n")
+cat("Base R Memory Usage:", base_r_memory, "\n")
+cat("Tidyverse Time:", tidyverse_time, "\n")
+cat("Tidyverse Memory Usage:", tidyverse_memory, "\n")
+cat("Data.table Time:", data_table_time, "\n")
+cat("Data.table Memory Usage:", data_table_memory, "\n")
+```
+From the result, `fread` is the fastest. 
+There is no difference in the (default) parsed data type. The column specification shows that all three methods infer the same data type for each column.
+`Base R` or `read.csv` uses 158710640 bytes (approximately 151 MB) of memory.
+`Tidyverse` or `read_csv` uses 55309384 bytes (approximately 52.7 MB) of memory.
+`Data.table` or `fread` uses 50129376 bytes (approximately 47.8 MB) of memory.
+
 ### Q1.2 User-supplied data types
 
 Re-ingest `admissions.csv.gz` by indicating appropriate column data types in `read_csv`. Does the run time change? How much memory does the result tibble use? (Hint: `col_types` argument in `read_csv`.)
+
+```{r}
+specified_types_time <- system.time({
+  specified_types_data <- read_csv(file_path, col_types = "iciccdci")
+})[3]
+specified_types_memory <- object_size(specified_types_data)
+```
+```{r}
+cat("Read_csv with Specified Column Data Types Time:", specified_types_time, "\n")
+cat("Read_csv with Specified Column Data Types Memory Usage:", specified_types_memory, "\n")
+```
+When re-ingesting `admissions.csv.gz` by indicating appropriate column data types in `read_csv`, the run time does change. The run time reduced from 0.947 seconds to 0.779 seconds.
+The result tibble uses 111428560 bytes (approximately 106 MB) of memory.
 
 ## Q2. Ingest big data files
 
