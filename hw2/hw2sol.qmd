@@ -202,10 +202,10 @@ system("zcat < ~/mimic/hosp/labevents.csv.gz > labevents.csv")
 ```{r}
 library(dplyr)
 system.time({
-  labevents_arrow <- open_dataset("labevents.csv", format = "csv") %>%
-    select(subject_id, itemid, charttime, valuenum) %>%
-    filter(itemid %in% c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) %>%
-    collect()
+  labevents_arrow <- arrow::open_dataset("labevents.csv", format = "csv") %>%
+    dplyr::select(subject_id, itemid, charttime, valuenum) %>%
+    dplyr::filter(itemid %in% c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) %>%
+    dplyr::collect()
 })
 ```
 ```{r}
@@ -217,7 +217,7 @@ first10_sorted <- labevents_arrow %>%
   arrange(subject_id, charttime, itemid)
 first10_sorted
 ```
-The ingest+select+filter process takes 29.081 seconds.
+The ingest+select+filter process takes 28.665 seconds.
 Apache Arrow is a technology that allows computers to efficiently share and understand data, making communication between different software programs fast and seamless. It acts like a universal translator for data, ensuring smooth and fast collaboration between computer systems.
 
 ### Q2.5 Compress `labevents.csv` to Parquet format and ingest/select/filter
@@ -231,10 +231,10 @@ Re-write the csv file `labevents.csv` in the binary Parquet format (Hint: [`arro
 Write a few sentences to explain what is the Parquet format. Imagine you want to explain it to a layman in an elevator.
 
 ```{r}
-write_dataset(labevents_arrow, "labevents.parquet", format = "parquet")
+arrow::write_dataset(labevents_arrow, "labevents.parquet", format = "parquet")
 ```
 ```{r}
-labevents_parquet <- open_dataset("labevents.parquet")
+labevents_parquet <- arrow::open_dataset("labevents.parquet")
 ```
 ```{r}
 file_size <- file.info("labevents.parquet")$size
@@ -243,9 +243,9 @@ file_size
 ```{r}
 system.time({
   labevents_parquet_result <- labevents_parquet %>%
-    select(subject_id, itemid, charttime, valuenum) %>%
-    filter(itemid %in% c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) %>%
-    collect()
+    dplyr::select(subject_id, itemid, charttime, valuenum) %>%
+    dplyr::filter(itemid %in% c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) %>%
+    dplyr::collect()
 })
 ```
 ```{r}
@@ -258,7 +258,7 @@ first10_sorted_labevents_parquet <- labevents_parquet_result %>%
 first10_sorted_labevents_parquet
 ```
 The Parquet file `labevents.parquet` is 96 bytes in size.
-The ingest+select+filter process of the Parquet file `labevents.parquet` takes 0.134 seconds.
+The ingest+select+filter process of the Parquet file `labevents.parquet` takes 0.148 seconds.
 Parquet is a data storage format that organizes information in a way that enables computers to efficiently read and process data ultra-fast. It's like a simplified digital information archiving system that optimizes the way computers process and retrieve data.
 
 ### Q2.6 DuckDB
@@ -270,6 +270,42 @@ Parquet is a data storage format that organizes information in a way that enable
 Ingest the Parquet file, convert it to a DuckDB table by [`arrow::to_duckdb`](https://arrow.apache.org/docs/r/reference/to_duckdb.html), select columns, and filter rows as in Q2.5. How long does the ingest+convert+select+filter process take? Display the number of rows and the first 10 rows of the result tibble and make sure they match those in Q2.3. (Hint: use `dplyr` verbs for selecting columns and filtering rows.)
 
 Write a few sentences to explain what is DuckDB. Imagine you want to explain it to a layman in an elevator.
+
+```{r}
+library(duckdb)
+```
+```{r}
+parquet_file <- "labevents.parquet"
+```
+```{r}
+start_time <- Sys.time()
+```
+```{r}
+labevents_duckdb <- arrow::open_dataset(parquet_file) %>%
+  arrow::to_duckdb()
+```
+```{r}
+result <- labevents_duckdb %>%
+  dplyr::select(subject_id, itemid, charttime, valuenum) %>%
+  dplyr::filter(itemid %in% c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931))
+```
+```{r}
+end_time <- Sys.time()
+processing_time <- end_time - start_time
+print(processing_time)
+```
+```{r}
+nrows <- result %>% count()
+print(nrows)
+```
+```{r}
+sorted_result <- result %>%
+  arrange(subject_id, charttime, itemid)
+first10_sorted <- sorted_result %>% head(10)
+print(first10_sorted)
+```
+The ingest+convert+select+filter process takes 7.422905 seconds.
+DuckDB is a high-performance database that can quickly organize and retrieve large amounts of data, making it an efficient tool for data analysis and management. It's like a super-fast digital information librarian.
 
 ## Q3. Ingest and filter `chartevents.csv.gz`
 
