@@ -195,6 +195,31 @@ Then use [`arrow::open_dataset`](https://arrow.apache.org/docs/r/reference/open_
 
 Write a few sentences to explain what is Apache Arrow. Imagine you want to explain it to a layman in an elevator. 
 
+```{r}
+#| eval: false
+system("zcat < ~/mimic/hosp/labevents.csv.gz > labevents.csv")
+```
+```{r}
+library(dplyr)
+system.time({
+  labevents_arrow <- open_dataset("labevents.csv", format = "csv") %>%
+    select(subject_id, itemid, charttime, valuenum) %>%
+    filter(itemid %in% c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) %>%
+    collect()
+})
+```
+```{r}
+nrow(labevents_arrow)
+```
+```{r}
+first10_sorted <- labevents_arrow %>%
+  slice_head(n = 10) %>%
+  arrange(subject_id, charttime, itemid)
+first10_sorted
+```
+The ingest+select+filter process takes 29.081 seconds.
+Apache Arrow is a technology that allows computers to efficiently share and understand data, making communication between different software programs fast and seamless. It acts like a universal translator for data, ensuring smooth and fast collaboration between computer systems.
+
 ### Q2.5 Compress `labevents.csv` to Parquet format and ingest/select/filter
 
 <p align="center">
