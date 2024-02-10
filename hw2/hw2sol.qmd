@@ -321,3 +321,28 @@ In later exercises, we are interested in the vitals for ICU patients: heart rate
 
 Document the steps and show code. Display the number of rows and the first 10 rows of the result tibble.
 
+```{r}
+system("zcat < ~/mimic/icu/chartevents.csv.gz > chartevents.csv")
+```
+```{r}
+chartevents_arrow <- arrow::open_dataset("chartevents.csv", format = "csv")
+```
+```{r}
+arrow::write_dataset(chartevents_arrow, "chartevents.parquet", format = "parquet")
+```
+```{r}
+chartevents_parquet <- arrow::open_dataset("chartevents.parquet")
+```
+```{r}
+chartevents_parquet_result <- chartevents_parquet %>% 
+  dplyr::filter(itemid %in% c(220045, 220181, 220179, 223761, 220210)) %>% 
+  dplyr::collect()
+```
+```{r}
+nrows <- chartevents_parquet_result %>% count()
+print(nrows)
+```
+```{r}
+first10_rows <- chartevents_parquet_result %>% head(10)
+print(first10_rows)
+```
