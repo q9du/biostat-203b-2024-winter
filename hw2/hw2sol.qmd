@@ -20,7 +20,7 @@ knitr:
     fig.height: 4
     message: FALSE
 execute:
-  eval: false    
+  eval: true    
 ---
 
 Display machine information for reproducibility:
@@ -138,7 +138,7 @@ Try to ingest `labevents.csv.gz` using `read_csv`. What happens? If it takes mor
 labevents_file <- "~/mimic/hosp/labevents.csv.gz"
 labevents_data <- read_csv(labevents_file)
 ```
-It took more than 5 minutes on my computer, so I aborted the program.
+It took more than 5 minutes on my computer, so I aborted the program. `read_csv` cannot ingest `labevents.csv.gz` because the size of the file is too large.
 
 ### Q2.2 Ingest selected columns of `labevents.csv.gz` by `read_csv`
 
@@ -150,7 +150,7 @@ labevents_file <- "~/mimic/hosp/labevents.csv.gz"
 ```{r}
 labevents_data_selected <- read_csv(labevents_file, col_select = c("subject_id", "itemid", "charttime", "valuenum"))
 ```
-This solved the ingestion issue. The output shows that the dataset has 118171367 rows and 4 columns.
+`read_csv` cannot ingest `labevents.csv.gz` because the size of the file is too large.
 
 ### Q2.3 Ingest subset of `labevents.csv.gz`
 
@@ -166,7 +166,12 @@ Display the first 10 lines of the new file `labevents_filtered.csv.gz`. How many
 
 ```{bash}
 #| eval: false
-zcat < ~/mimic/hosp/labevents.csv.gz | awk -F ',' 'BEGIN{OFS=","} NR==1 || ($5 == 50912 || $5 == 50971 || $5 == 50983 || $5 == 50902 || $5 == 50882 || $5 == 51221 || $5 == 51301 || $5 == 50931) {print $2, $5, $7, $10}' | gzip > labevents_filtered.csv.gz
+zcat < ~/mimic/hosp/labevents.csv.gz | \
+  awk -F ',' 'BEGIN{OFS=","} NR==1 || \
+  ($5 == 50912 || $5 == 50971 || $5 == 50983 || \
+  $5 == 50902 || $5 == 50882 || $5 == 51221 || \
+  $5 == 51301 || $5 == 50931) {print $2, $5, $7, $10}' | \
+  gzip > labevents_filtered.csv.gz
 ```
 ```{bash}
 zcat < labevents_filtered.csv.gz | head -10
@@ -212,10 +217,10 @@ system.time({
 nrow(labevents_arrow)
 ```
 ```{r}
-first10_sorted <- labevents_arrow %>%
-  slice_head(n = 10) %>%
+sorted_labevents <- labevents_arrow %>%
   arrange(subject_id, charttime, itemid)
-first10_sorted
+first10_sorted <- sorted_labevents %>% head(10)
+print(first10_sorted)
 ```
 The ingest+select+filter process takes 28.665 seconds.
 Apache Arrow is a technology that allows computers to efficiently share and understand data, making communication between different software programs fast and seamless. It acts like a universal translator for data, ensuring smooth and fast collaboration between computer systems.
@@ -253,9 +258,9 @@ nrow(labevents_parquet_result)
 ```
 ```{r}
 first10_sorted_labevents_parquet <- labevents_parquet_result %>%
-  slice_head(n = 10) %>%
   arrange(subject_id, charttime, itemid)
-first10_sorted_labevents_parquet
+first10_sorted <- first10_sorted_labevents_parquet %>% head(10)
+print(first10_sorted)
 ```
 The Parquet file `labevents.parquet` is 96 bytes in size.
 The ingest+select+filter process of the Parquet file `labevents.parquet` takes 0.148 seconds.
@@ -321,27 +326,34 @@ In later exercises, we are interested in the vitals for ICU patients: heart rate
 
 Document the steps and show code. Display the number of rows and the first 10 rows of the result tibble.
 
+1. Unzipping the CSV File:
 ```{r}
 system("zcat < ~/mimic/icu/chartevents.csv.gz > chartevents.csv")
 ```
+2. Opening CSV File with Arrow:
 ```{r}
 chartevents_arrow <- arrow::open_dataset("chartevents.csv", format = "csv")
 ```
+3. Writing Dataset to Parquet Format:
 ```{r}
 arrow::write_dataset(chartevents_arrow, "chartevents.parquet", format = "parquet")
 ```
+4. Opening Parquet Dataset with Arrow:
 ```{r}
 chartevents_parquet <- arrow::open_dataset("chartevents.parquet")
 ```
+5. Filtering and Collecting Results:
 ```{r}
 chartevents_parquet_result <- chartevents_parquet %>% 
   dplyr::filter(itemid %in% c(220045, 220181, 220179, 223761, 220210)) %>% 
   dplyr::collect()
 ```
+6. Counting the Number of Rows:
 ```{r}
 nrows <- chartevents_parquet_result %>% count()
 print(nrows)
 ```
+7. Displaying the First 10 Rows:
 ```{r}
 first10_rows <- chartevents_parquet_result %>% head(10)
 print(first10_rows)
