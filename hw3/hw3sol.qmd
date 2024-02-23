@@ -442,7 +442,17 @@ We are interested in the lab measurements of creatinine (50912), potassium (5097
 Hint: Use the Parquet format you generated in Homework 2. For reproducibility, make `labevents_pq` folder available at the current working directory `hw3`, for example, by a symbolic link.
 
 #### Answer
+```{r}
+labevents_arrow <- open_dataset("~/mimic/hosp/labevents.csv.gz", format = "csv")
+write_dataset(labevents_arrow, "labevents.parquet", format = "parquet")
+labevents_pq <- open_dataset("labevents.parquet")
+```
 
+Import `labevents.csv.gz` as a tibble `labevents_tble`:
+```{r}
+labevents_tble <- as_tibble(labevents_pq) |>
+  print(width = Inf)
+```
 
 ```{r}
 lab_itemids <- c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)
@@ -463,25 +473,7 @@ print(labevents_final)
 ```
 
 
-```{r}
-labevents_tble <- as_tibble(labevents_pq) |>
-  print(width = Inf)
 
-item_ids_of_interest <- c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)
-
-filtered_labevents <- labevents_tble %>%
-  filter(itemid %in% item_ids_of_interest) %>%
-  collect()
-
-labevents_for_icustays <- filtered_labevents %>%
-  inner_join(icustays_tble, by = "subject_id") %>%
-  filter(storetime < intime) %>%
-  arrange(subject_id, stay_id, storetime) %>%
-  group_by(subject_id, stay_id, itemid) %>%
-  slice_tail(n = 1) %>%
-  ungroup() %>%
-  pivot_wider(names_from = itemid, values_from = value)
-```
 
 
 ```{r}
