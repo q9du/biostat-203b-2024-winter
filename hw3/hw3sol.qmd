@@ -194,8 +194,43 @@ Do a similar visualization for the patient `10013310`.
 #### Answer
 
 ```{r}
+# Assuming you have a dataframe 'vitals' with columns: 'time', 'vital_type', 'value', 'stay_id'
+# Filter for patient 10013310
+vitals_filtered <- vitals %>%
+  filter(subject_id == sid)
 
 ```
+
+```{r}
+library(ggplot2)
+
+# Create the plot
+vitals_plot <- ggplot(vitals_filtered, aes(x = time, y = value, color = vital_type)) +
+  geom_line() +  # Draw lines to connect data points
+  facet_grid(stay_id ~ vital_type, scales = "free_y") +  # Create a grid for each stay and vital type
+  labs(
+    title = "Patient 10013310 ICU Stays - Vitals",
+    x = "Calendar Time",
+    y = "Value",
+    color = "Type of Vital"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
+    strip.background = element_rect(fill = "gray90"),  # Customize the background of the facet labels
+    strip.text = element_text(size = 10),  # Customize facet label text
+    legend.position = "bottom"
+  ) +
+  scale_color_brewer(palette = "Set1")  # Use a color palette that is distinguishable
+
+# Display the plot
+vitals_plot
+
+```
+
+
+
+
 
 
 ## Q2. ICU stays
@@ -408,17 +443,6 @@ Hint: Use the Parquet format you generated in Homework 2. For reproducibility, m
 
 #### Answer
 
-```{r}
-labevents_arrow <- open_dataset("~/mimic/hosp/labevents.csv.gz", format = "csv")
-write_dataset(labevents_arrow, "labevents.parquet", format = "parquet")
-labevents_pq <- open_dataset("labevents.parquet")
-```
-
-Import `labevents.csv.gz` as a tibble `labevents_tble`:
-```{r}
-labevents_tble <- as_tibble(labevents_pq) |>
-  print(width = Inf)
-```
 
 ```{r}
 lab_itemids <- c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)
