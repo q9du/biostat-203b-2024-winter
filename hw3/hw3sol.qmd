@@ -193,40 +193,7 @@ Do a similar visualization for the patient `10013310`.
 
 #### Answer
 
-```{r}
-# Assuming you have a dataframe 'vitals' with columns: 'time', 'vital_type', 'value', 'stay_id'
-# Filter for patient 10013310
-vitals_filtered <- vitals %>%
-  filter(subject_id == sid)
 
-```
-
-```{r}
-library(ggplot2)
-
-# Create the plot
-vitals_plot <- ggplot(vitals_filtered, aes(x = time, y = value, color = vital_type)) +
-  geom_line() +  # Draw lines to connect data points
-  facet_grid(stay_id ~ vital_type, scales = "free_y") +  # Create a grid for each stay and vital type
-  labs(
-    title = "Patient 10013310 ICU Stays - Vitals",
-    x = "Calendar Time",
-    y = "Value",
-    color = "Type of Vital"
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for better readability
-    strip.background = element_rect(fill = "gray90"),  # Customize the background of the facet labels
-    strip.text = element_text(size = 10),  # Customize facet label text
-    legend.position = "bottom"
-  ) +
-  scale_color_brewer(palette = "Set1")  # Use a color palette that is distinguishable
-
-# Display the plot
-vitals_plot
-
-```
 
 
 
@@ -543,7 +510,37 @@ Hint: Use the Parquet format you generated in Homework 2. For reproducibility, m
 
 #### Answer
 
+```{r}
+chartevents_arrow <- open_dataset("~/mimic/icu/chartevents.csv.gz", format = "csv")
+write_dataset(chartevents_arrow, "chartevents.parquet", format = "parquet")
+chartevents_pq <- open_dataset("chartevents.parquet")
 
+icustays_tble <- data.frame(
+  subject_id = c(10000032, 10000048, 10000068),
+  hadm_id = c(22595853, 22841357, 25742920)
+)
+
+extract_first_measurement <- function(df, itemid) {
+  df %>%
+    filter(itemid == {{itemid}}) %>%
+    arrange(charttime) %>%
+    slice_head(n = 1) %>%
+    pull(value)
+}
+
+chartevents_tble <- icustays_tble %>%
+  rowwise() %>%
+  mutate(
+    heart_rate = extract_first_measurement(chartevents_pq, 220045),
+    sys_bp = extract_first_measurement(chartevents_pq, 220179),
+    dias_bp = extract_first_measurement(chartevents_pq, 220180),
+    temperature = extract_first_measurement(chartevents_pq, 223761),
+    respiratory_rate = extract_first_measurement(chartevents_pq, 220210)
+  ) %>%
+  select(subject_id, hadm_id, heart_rate, sys_bp, dias_bp, temperature, respiratory_rate)
+
+print(chartevents_tble)
+```
 
 
 ## Q7. Putting things together
