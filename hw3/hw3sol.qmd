@@ -494,6 +494,31 @@ labevents_for_icustays <- filtered_labevents %>%
 ```
 
 
+```{r}
+library(lubridate)
+
+# Define the relevant item IDs for filtering
+item_ids <- c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)
+
+# Assuming 'labevents_pq' is your Parquet directory
+labevents_pq <- open_dataset("labevents.parquet")
+
+# Process and filter lab events data
+filtered_labevents <- labevents_pq %>%
+  filter(itemid %in% item_ids) %>%
+  collect() %>%
+  inner_join(icustays_tble, by = "subject_id") %>%
+  filter(storetime < intime) %>%
+  arrange(subject_id, stay_id, storetime) %>%
+  group_by(subject_id, stay_id, itemid) %>%
+  slice_max(order_by = storetime, n = 1) %>%
+  ungroup()
+
+# Reshape the data for analysis
+final_labevents_tble <- filtered_labevents %>%
+  pivot_wider(names_from = itemid, values_from = valuenum, names_prefix = "lab_")
+
+```
 
 
 
@@ -518,37 +543,7 @@ Hint: Use the Parquet format you generated in Homework 2. For reproducibility, m
 
 #### Answer
 
-```{r}
-chartevents_arrow <- open_dataset("~/mimic/icu/chartevents.csv.gz", format = "csv")
-write_dataset(chartevents_arrow, "chartevents.parquet", format = "parquet")
-chartevents_pq <- open_dataset("chartevents.parquet")
 
-icustays_tble <- data.frame(
-  subject_id = c(10000032, 10000048, 10000068),
-  hadm_id = c(22595853, 22841357, 25742920)
-)
-
-extract_first_measurement <- function(df, itemid) {
-  df %>%
-    filter(itemid == {{itemid}}) %>%
-    arrange(charttime) %>%
-    slice_head(n = 1) %>%
-    pull(value)
-}
-
-chartevents_tble <- icustays_tble %>%
-  rowwise() %>%
-  mutate(
-    heart_rate = extract_first_measurement(chartevents_pq, 220045),
-    sys_bp = extract_first_measurement(chartevents_pq, 220179),
-    dias_bp = extract_first_measurement(chartevents_pq, 220180),
-    temperature = extract_first_measurement(chartevents_pq, 223761),
-    respiratory_rate = extract_first_measurement(chartevents_pq, 220210)
-  ) %>%
-  select(subject_id, hadm_id, heart_rate, sys_bp, dias_bp, temperature, respiratory_rate)
-
-print(chartevents_tble)
-```
 
 
 ## Q7. Putting things together
