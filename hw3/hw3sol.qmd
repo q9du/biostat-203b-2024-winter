@@ -29,6 +29,9 @@ library(R.utils)
 library(tidyverse)
 library(ggplot2)
 library(dplyr)
+library(readr)
+library(tidyr)
+library(lubridate)
 ```
 
 Display your machine memory.
@@ -60,8 +63,7 @@ sid <- 10013310
 
 ```{r}
 patient <- read.csv("~/mimic/hosp/patients.csv.gz") |>
-  filter(subject_id == sid) |>
-  print(width = Inf)
+  filter(subject_id == sid) 
 ```
 
 ```{r}
@@ -74,8 +76,7 @@ age <- patient$anchor_age
 
 ```{r}
 admission <- read.csv("~/mimic/hosp/admissions.csv.gz") |>
-  filter(subject_id == sid) |>
-  print(width = Inf)
+  filter(subject_id == sid) 
 ```
 
 ```{r}
@@ -84,8 +85,7 @@ race <- tolower(admission$race[1])
 
 ```{r}
 diagnose_icd <- read.csv("~/mimic/hosp/diagnoses_icd.csv.gz") |>
-  filter(subject_id == sid) |>
-  print(width = Inf)
+  filter(subject_id == sid) 
 ```
 
 ```{r}
@@ -96,16 +96,13 @@ icd_code3 <- diagnose_icd$icd_code[3]
 
 ```{r}
 d_icd_diagnose1 <- read.csv("~/mimic/hosp/d_icd_diagnoses.csv.gz") |>
-  filter(icd_code == icd_code1) |>
-  print(width = Inf)
+  filter(icd_code == icd_code1) 
 
 d_icd_diagnose2 <- read.csv("~/mimic/hosp/d_icd_diagnoses.csv.gz") |>
-  filter(icd_code == icd_code2) |>
-  print(width = Inf)
+  filter(icd_code == icd_code2) 
 
 d_icd_diagnose3 <- read.csv("~/mimic/hosp/d_icd_diagnoses.csv.gz") |>
-  filter(icd_code == icd_code3) |>
-  print(width = Inf)
+  filter(icd_code == icd_code3) 
 ```
 
 ```{r}
@@ -117,36 +114,33 @@ diagnose3 <- tolower(d_icd_diagnose3$long_title)
 Import `transfers.csv.gz` as a tibble `sid_adt`:
 ```{r}
 sid_adt <- read_csv("~/mimic/hosp/transfers.csv.gz") |>
-  filter(subject_id == sid) |>
-  print(width = Inf)
+  filter(subject_id == sid) 
 ```
 
 ```{r}
-labevents_arrow <- open_dataset("~/mimic/hosp/labevents.csv.gz", format = "csv")
-write_dataset(labevents_arrow, "labevents.parquet", format = "parquet")
-labevents_pq <- open_dataset("labevents.parquet")
+#labevents_pq <- arrow::read_parquet("/Users/qianhuidu/Desktop/UCLA/Winter2024/203B/HW/203b-hw/hw3/labevents_pq/part-0.parquet")
+
+labevents_pq <- open_dataset("labevents_pq")
 ```
 
-Import `labevents.csv.gz` as a tibble `sid_lab`:
+Import `labevents_pq` as a tibble `sid_lab`:
 ```{r}
-sid_lab <- as_tibble(labevents_pq) |>
+sid_lab <- labevents_pq |>
   filter(subject_id == sid) |>
-  print(width = Inf)
+  as_tibble() 
 ```
 
 Import `procedures_icd.csv.gz` as a tibble `sid_procedure`:
 ```{r}
 sid_procedure <- read_csv("~/mimic/hosp/procedures_icd.csv.gz") |>
-  filter(subject_id == sid) |>
-  print(width = Inf)
+  filter(subject_id == sid) 
 ```
 
 ```{r}
 d_icd_procedures <- read.csv("~/mimic/hosp/d_icd_procedures.csv.gz")
 
 procedures <- d_icd_procedures %>%
-  filter(icd_code %in% sid_procedure$icd_code) %>%
-  print(width = Inf)
+  filter(icd_code %in% sid_procedure$icd_code) 
 ```
 
 ```{r}
@@ -159,7 +153,8 @@ plot <- ggplot() +
                    yend = "ADT", 
                    color = careunit,
                    linewidth = str_detect(careunit, "(ICU|CCU)"))
-               ) + 
+               ) +
+  scale_linewidth_discrete(guide = "none") +
   geom_point(data = sid_lab, 
              aes(x = charttime, 
                  y = "Lab"), 
@@ -170,14 +165,21 @@ plot <- ggplot() +
                  y = "Procedure",
                  shape = procedures$long_title)
              ) + 
+  scale_shape_manual(values = c(1:10),
+                     labels = unique(procedures$long_title)) + 
   labs(
     x = "Calendar Time",
     y = "",
     title = str_c("Patient ", sid, ", ", gender, ", ", age, " years old,", race),
     subtitle = paste(diagnose1, diagnose2, diagnose3, sep = "\n")
   ) + 
-  theme(legend.position = "bottom") + 
-  theme(legend.box = "vertical") + 
+  guides(color = guide_legend(title = "Care Unit"),
+         shape = guide_legend(title = "Procedure",
+                              ncol = 2)) +
+  theme(legend.position = "bottom",
+        legend.box = "vertical",
+        legend.text = element_text(size = 5),
+        legend.title = element_text(size = 7)) + 
   scale_y_discrete(limits = c("Procedure", "Lab", "ADT"))
 
 plot
@@ -193,12 +195,42 @@ Do a similar visualization for the patient `10013310`.
 
 #### Answer
 
+```{r}
+#chartevents_pq <- arrow::read_parquet("/Users/qianhuidu/Desktop/UCLA/Winter2024/203B/HW/203b-hw/hw3/chartevents_pq/part-0.parquet")
 
+chartevents_pq <- open_dataset("chartevents_pq")
+```
 
+Import `chartevents_pq` as a tibble `sid_vitals`:
+```{r}
+sid_vitals <- as_tibble(chartevents_pq) |>
+  filter(subject_id == sid & itemid %in% c(220045, 220179, 220180, 223761, 220210)) |>
+  mutate(
+    itemid = case_when(
+      itemid == 220045 ~ "HR",
+      itemid == 220180 ~ "NBPd",
+      itemid == 220179 ~ "NBPs",
+      itemid == 220210 ~ "RR",
+      itemid == 223761 ~ "Temperature F"))
+```
 
+```{r}
+vitals_plot <- ggplot(sid_vitals, aes(x = charttime, y = valuenum, color = itemid)) +
+  geom_point() +
+  geom_line() +
+  facet_grid(itemid ~ stay_id, scales = 'free') +
+  labs(
+    title = paste("Patient", 10013310, "ICU Stays - Vitals"),
+    x = "Calendar Time",
+    y = "Value"
+    ) +
+  theme_minimal() + 
+  theme(legend.position = "none") +
+  scale_color_brewer(type = 'qual') + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-
-
+vitals_plot
+```
 
 ## Q2. ICU stays
 
@@ -214,8 +246,7 @@ Import `icustays.csv.gz` as a tibble `icustays_tble`.
 #### Answer
 
 ```{r}
-icustays_tble <- read_csv("~/mimic/icu/icustays.csv.gz") |>
-  print(width = Inf)
+icustays_tble <- read_csv("~/mimic/icu/icustays.csv.gz") 
 ```
 
 ### Q2.2 Summary and visualization
@@ -270,8 +301,7 @@ Import `admissions.csv.gz` as a tibble `admissions_tble`.
 #### Answer
 
 ```{r}
-admissions_tble <- read_csv("~/mimic/hosp/admissions.csv.gz") |>
-  print(width = Inf)
+admissions_tble <- read_csv("~/mimic/hosp/admissions.csv.gz")
 ```
 
 ### Q3.2 Summary and visualization
@@ -356,8 +386,7 @@ Import `patients.csv.gz` (<https://mimic.mit.edu/docs/iv/modules/hosp/patients/>
 #### Answer
 
 ```{r}
-patients_tble <- read_csv("~/mimic/hosp/patients.csv.gz") |>
-  print(width = Inf)
+patients_tble <- read_csv("~/mimic/hosp/patients.csv.gz") 
 ```
 
 ### Q4.2 Summary and visualization
@@ -409,86 +438,45 @@ We are interested in the lab measurements of creatinine (50912), potassium (5097
 Hint: Use the Parquet format you generated in Homework 2. For reproducibility, make `labevents_pq` folder available at the current working directory `hw3`, for example, by a symbolic link.
 
 #### Answer
-```{r}
-labevents_arrow <- open_dataset("~/mimic/hosp/labevents.csv.gz", format = "csv")
-write_dataset(labevents_arrow, "labevents.parquet", format = "parquet")
-labevents_pq <- open_dataset("labevents.parquet")
-```
-
-Import `labevents.csv.gz` as a tibble `labevents_tble`:
-```{r}
-labevents_tble <- as_tibble(labevents_pq) |>
-  print(width = Inf)
-```
 
 ```{r}
-lab_itemids <- c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)
-
-filtered_labevents <- labevents_tble %>%
-  filter(subject_id %in% icustays_tble$subject_id, itemid %in% lab_itemids) %>%
-  select(subject_id, hadm_id, charttime, storetime, itemid, value, valuenum, valueuom) %>%
-  arrange(subject_id, charttime) %>%
-  group_by(subject_id, hadm_id) %>%
-  slice_tail()
-
-labevents_final <- filtered_labevents %>%
-  pivot_wider(names_from = itemid, values_from = c(value, valuenum, valueuom))
-
-colnames(labevents_final) <- gsub("\\.", "_", colnames(labevents_final))
-
-print(labevents_final)
-```
-
-
-```{r}
-labevents_tble <- as_tibble(labevents_pq) |>
-  print(width = Inf)
-
-item_ids_of_interest <- c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)
-
-filtered_labevents <- labevents_tble %>%
-  filter(itemid %in% item_ids_of_interest) %>%
-  collect()
-
-labevents_for_icustays <- filtered_labevents %>%
-  inner_join(icustays_tble, by = "subject_id") %>%
-  filter(storetime < intime) %>%
-  arrange(subject_id, stay_id, storetime) %>%
-  group_by(subject_id, stay_id, itemid) %>%
-  slice_tail(n = 1) %>%
-  ungroup() %>%
-  pivot_wider(names_from = itemid, values_from = value)
-```
-
-
-```{r}
-library(lubridate)
-
-# Define the relevant item IDs for filtering
 item_ids <- c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)
 
-# Assuming 'labevents_pq' is your Parquet directory
-labevents_pq <- open_dataset("labevents.parquet")
-
-# Process and filter lab events data
-filtered_labevents <- labevents_pq %>%
+#labevents_pq <- arrow::read_parquet("/Users/qianhuidu/Desktop/UCLA/Winter2024/203B/HW/203b-hw/hw3/labevents_pq/part-0.parquet") %>%
+  
+labevents_pq <- open_dataset("labevents_pq") %>%
   filter(itemid %in% item_ids) %>%
-  collect() %>%
-  inner_join(icustays_tble, by = "subject_id") %>%
-  filter(storetime < intime) %>%
+  collect()
+icustays_tble <- read_csv("~/mimic/icu/icustays.csv.gz") 
+
+labevents_hosp <- labevents_pq %>%
+  inner_join(icustays_tble, by ="subject_id") %>%
+  filter(storetime < intime) 
+
+last_lab <- labevents_hosp %>%
   arrange(subject_id, stay_id, storetime) %>%
   group_by(subject_id, stay_id, itemid) %>%
-  slice_max(order_by = storetime, n = 1) %>%
+  slice_max(order_by = storetime, n = 1, with_ties = FALSE) %>%
   ungroup()
 
-# Reshape the data for analysis
-final_labevents_tble <- filtered_labevents %>%
-  pivot_wider(names_from = itemid, values_from = valuenum, names_prefix = "lab_")
+labevents_tble <- last_lab %>%
+  pivot_wider(id_cols = c(subject_id, stay_id), 
+              names_from = itemid, 
+              values_from = valuenum, 
+              values_fill = list(valuenum = NA)) %>%
+  rename(
+    creatinine = `50912`,
+    potassium = `50971`,
+    sodium = `50983`,
+    chloride = `50902`,
+    bicarbonate = `50882`,
+    hematocrit = `51221`,
+    wbc = `51301`,
+    glucose = `50931`
+    )
 
+labevents_tble
 ```
-
-
-
 
 ## Q6. Vitals from charted events
 
@@ -511,37 +499,47 @@ Hint: Use the Parquet format you generated in Homework 2. For reproducibility, m
 #### Answer
 
 ```{r}
-chartevents_arrow <- open_dataset("~/mimic/icu/chartevents.csv.gz", format = "csv")
-write_dataset(chartevents_arrow, "chartevents.parquet", format = "parquet")
-chartevents_pq <- open_dataset("chartevents.parquet")
+item_ids1 <- c(220045, 220179, 220180, 223761, 220210)
 
-icustays_tble <- data.frame(
-  subject_id = c(10000032, 10000048, 10000068),
-  hadm_id = c(22595853, 22841357, 25742920)
-)
+#chartevents_pq <- arrow::read_parquet("/Users/qianhuidu/Desktop/UCLA/Winter2024/203B/HW/203b-hw/hw3/chartevents_pq/part-0.parquet") %>%
 
-extract_first_measurement <- function(df, itemid) {
-  df %>%
-    filter(itemid == {{itemid}}) %>%
-    arrange(charttime) %>%
-    slice_head(n = 1) %>%
-    pull(value)
-}
+chartevents_pq <- open_dataset("chartevents_pq") %>%
+  filter(itemid %in% item_ids1) %>%
+  collect()
+icustays_tble <- read_csv("~/mimic/icu/icustays.csv.gz") 
 
-chartevents_tble <- icustays_tble %>%
-  rowwise() %>%
-  mutate(
-    heart_rate = extract_first_measurement(chartevents_pq, 220045),
-    sys_bp = extract_first_measurement(chartevents_pq, 220179),
-    dias_bp = extract_first_measurement(chartevents_pq, 220180),
-    temperature = extract_first_measurement(chartevents_pq, 223761),
-    respiratory_rate = extract_first_measurement(chartevents_pq, 220210)
+chartevents_icu <- chartevents_pq %>%
+  inner_join(icustays_tble, by = "subject_id") %>%
+  filter(charttime >= intime, charttime <= outtime)
+
+first_vitals <- chartevents_icu %>%
+  arrange(subject_id, stay_id.x, charttime) %>%
+  group_by(subject_id, stay_id.x, itemid) %>%
+  slice_min(order_by = charttime, n = 1, with_ties = FALSE) %>%
+  ungroup()
+
+chartevents_tble <- first_vitals %>%
+  pivot_wider(id_cols = c(subject_id, stay_id.x),
+              names_from = itemid,
+              values_from = value,
+              values_fill = list(value = NA)) %>%
+  rename(
+    stay_id = stay_id.x, 
+    heart_rate = `220045`,
+    non_invasive_blood_pressure_systolic = `220179`,
+    non_invasive_blood_pressure_diastolic = `220180`,
+    temperature_fahrenheit = `223761`,
+    respiratory_rate = `220210`
   ) %>%
-  select(subject_id, hadm_id, heart_rate, sys_bp, dias_bp, temperature, respiratory_rate)
+  mutate(heart_rate = as.numeric(heart_rate),
+         non_invasive_blood_pressure_systolic = as.numeric(non_invasive_blood_pressure_systolic),
+         non_invasive_blood_pressure_diastolic = as.numeric(non_invasive_blood_pressure_diastolic),
+         respiratory_rate = as.numeric(respiratory_rate),
+         temperature_fahrenheit = as.numeric(temperature_fahrenheit)
+         ) 
 
-print(chartevents_tble)
+chartevents_tble
 ```
-
 
 ## Q7. Putting things together
 
@@ -557,6 +555,22 @@ The final `mimic_icu_cohort` should have one row per ICU stay and columns for ea
 
 ![](mimic_icu_cohort.png)
 
+#### Answer
+
+```{r}
+admissions_tble <- read_csv("~/mimic/hosp/admissions.csv.gz")
+
+mimic_icu_cohort <- icustays_tble %>%
+  left_join(admissions_tble, by = c("subject_id", "hadm_id")) %>%
+  left_join(patients_tble, by = "subject_id") %>%
+  left_join(labevents_tble, by = c("subject_id", "stay_id")) %>%
+  left_join(chartevents_tble, by = c("subject_id", "stay_id")) %>%
+  mutate(intime_age = year(intime) - anchor_year + anchor_age) %>%
+  filter(intime_age >= 18)
+
+mimic_icu_cohort
+```
+
 ## Q8. Exploratory data analysis (EDA)
 
 Summarize the following information about the ICU stay cohort `mimic_icu_cohort` using appropriate numerics or graphs:
@@ -568,3 +582,165 @@ Summarize the following information about the ICU stay cohort `mimic_icu_cohort`
 - Length of ICU stay `los` vs the average vital measurements within the first hour of ICU stay
 
 - Length of ICU stay `los` vs first ICU unit
+
+#### Answer
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = race, y = los)) +
+  geom_boxplot() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs Race", x = "Race", y = "Length of ICU Stay (days)") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+It shows variations in the median, range, and outliers of ICU stay lengths among these groups, with some racial categories exhibiting longer stays and greater variability than others.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = insurance, y = los)) +
+  geom_boxplot() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs Insurance", x = "Insurance", y = "Length of ICU Stay (days)")
+```
+It shows that Medicare patients tend to have longer median ICU stays than those with Medicaid or other insurance types, with both Medicaid and Other showing fewer and lower outliers compared to Medicare.
+
+```{r}
+mimic_icu_cohort1 <- drop_na(mimic_icu_cohort, "marital_status")
+ggplot(mimic_icu_cohort1, aes(x = marital_status, y = los)) +
+  geom_boxplot() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs Marital Status", x = "Marital Status", y = "Length of ICU Stay (days)")
+```
+It shows the distribution of ICU stay lengths for each marital status, with median values, ranges, and outliers. All groups show a similar range of ICU stay lengths, but the number and spread of outliers vary slightly among the groups.
+ 
+```{r}
+ggplot(mimic_icu_cohort, aes(x = gender, y = los)) +
+  geom_boxplot() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs Gender", x = "Gender", y = "Length of ICU Stay (days)")
+```
+It shows the distribution of ICU stay lengths for each gender, with both having a similar range of stay lengths. However, the spread of outliers—particularly long stays—appears to be greater for males than for females. The median stay length for both genders, indicated by the line within each box, appears to be similar and relatively low compared to the overall range.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = intime_age, y = los)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs Age at Intime", x = "Age at Intime", y = "Length of ICU Stay (days)")
+```
+It shows a wide range of ICU stay lengths across all age groups, with most stays being short, but with several outliers indicating longer stays. There is no clear trend suggesting that age significantly influences the length of ICU stays.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = creatinine, y = los)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs Last Creatinine Measurement", x = "Last Creatinine", y = "Length of ICU Stay (days)")
+```
+Most points focus on the lower level of last creatinine measurement and the shorter length of ICU stay. There are outliers.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = potassium, y = los)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs Last Potassium Measurement", x = "Last Potassium", y = "Length of ICU Stay (days)")
+```
+It is generally distributed in the normal low level of potassium and the normal short length of ICU stay. There are outliers.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = sodium, y = los)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs Last Sodium Measurement", x = "Last Sodium", y = "Length of ICU Stay (days)")
+```
+It is generally distributed in the normal high level of sodium and the normal short length of ICU stay. There are outliers.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = chloride, y = los)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs Last Chloride Measurement", x = "Last Chloride", y = "Length of ICU Stay (days)")
+```
+It is generally distributed in the normal high level of chloride and the normal short length of ICU stay. There are outliers.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = bicarbonate, y = los)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs Last Bicarbonate Measurement", x = "Last Bicarbonate", y = "Length of ICU Stay (days)")
+```
+It is generally distributed in the normal level of bicarbonate and the normal short length of ICU stay. There are outliers.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = hematocrit, y = los)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs Last Hematocrit Measurement", x = "Last Hematocrit", y = "Length of ICU Stay (days)")
+```
+It is generally distributed in the normal low level of hematocrit and the normal short length of ICU stay. There are outliers.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = wbc, y = los)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs Last White Blood Cell Count Measurement", x = "Last White Blood Cell Count", y = "Length of ICU Stay (days)")
+```
+Most points focus on the lower level of last white blood cell count measurement and various lengths of ICU stay. There are outliers.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = glucose, y = los)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs Last Glucose Measurement", x = "Last Glucose", y = "Length of ICU Stay (days)")
+```
+Most points focus on the lower level of last glucose measurement and the various lengths of ICU stay. There are outliers.
+
+```{r}
+  ggplot(mimic_icu_cohort, aes(x = heart_rate, y = los)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs First Heart Rate", x = "First Heart Rate", y = "Length of ICU Stay (days)") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+Most points focus on lower first heart rates and various lengths of ICU stay. There are outliers.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = non_invasive_blood_pressure_systolic, y = los)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs First Systolic Non-invasive Blood Pressure", x = "First Systolic Non-invasive Blood Pressure", y = "Length of ICU Stay (days)") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+Most points focus on various levels of first systolic non-invasive blood pressure and longer length of ICU stay. There are outliers.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = non_invasive_blood_pressure_diastolic, y = los)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs First Diastolic Non-invasive Blood Pressure", x = "First Diastolic Non-invasive Blood Pressure", y = "Length of ICU Stay (days)") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+Most points focus on lower levels of first diastolic non-invasive blood pressure and various lengths of ICU stay. There are outliers.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = temperature_fahrenheit, y = los)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs First Body Temperature in Fahrenheit", x = "First Body Temperature in Fahrenheit", y = "Length of ICU Stay (days)") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+Most points focus on lower levels of first body temperature in Fahrenheit and various lengths of ICU stay. There are outliers.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = respiratory_rate, y = los)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Length of ICU Stay vs First Respiratory Rate", x = "First Respiratory Rate", y = "Length of ICU Stay (days)") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+Most points focus on the lower level of first respiratory rate and shorter length of ICU stay. There are outliers.
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = first_careunit, y = los)) +
+  geom_boxplot() +
+  labs(title = "Length of ICU Stay vs First ICU Unit", x = "First ICU Unit", y = "Length of ICU Stay (days)") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+The median length of ICU stay for patients in different first ICU units varies. There are outliers in every first ICU unit.
+
