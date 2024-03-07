@@ -220,6 +220,7 @@ Hint: Below is a numerical summary of my tibble after preprocessing:
 
 ```{r}
 library(forcats)
+
 mimic_icu_cohort1 <- mimic_icu_cohort |>
   mutate(
     first_careunit = fct_lump(first_careunit, n = 4, other_level = "Other"),
@@ -227,13 +228,23 @@ mimic_icu_cohort1 <- mimic_icu_cohort |>
     admission_type = fct_lump(admission_type, n = 4, other_level = "Other"),
     admission_location = fct_lump(admission_location, n = 3, other_level = "Other"),
     discharge_location = fct_lump(discharge_location, n = 4, other_level = "Other"),
-    race = case_when(
-      str_detect(race, regex("Asian", ignore_case = TRUE)) ~ "ASIAN",
-      str_detect(race, regex("Black", ignore_case = TRUE)) ~ "BLACK",
-      str_detect(race, regex("Hispanic", ignore_case = TRUE)) ~ "HISPANIC",
-      str_detect(race, regex("White", ignore_case = TRUE)) ~ "WHITE",
-      TRUE ~ "Other"
-      ),
+    race = fct_collapse(race,
+                        ASIAN = c("ASIAN", "ASIAN - ASIAN INDIAN", "ASIAN - CHINESE", 
+                                  "ASIAN - KOREAN", "ASIAN - SOUTH EAST ASIAN"),
+                        BLACK = c("BLACK/AFRICAN", "BLACK/AFRICAN AMERICAN", 
+                                  "BLACK/CAPE VERDEAN", "BLACK/CARIBBEAN ISLAND"),
+                        HISPANIC = c("HISPANIC OR LATINO", "HISPANIC/LATINO - CENTRAL AMERICAN", 
+                                     "HISPANIC/LATINO - COLUMBIAN", "HISPANIC/LATINO - CUBAN", 
+                                     "HISPANIC/LATINO - DOMINICAN", "HISPANIC/LATINO - GUATEMALAN",
+                                     "HISPANIC/LATINO - HONDURAN", "HISPANIC/LATINO - MEXICAN", 
+                                     "HISPANIC/LATINO - PUERTO RICAN", "HISPANIC/LATINO - SALVADORAN"),
+                        WHITE = c("WHITE", "WHITE - BRAZILIAN", "WHITE - EASTERN EUROPEAN", 
+                                  "WHITE - OTHER EUROPEAN", "WHITE - RUSSIAN"),
+                        Other = c("AMERICAN INDIAN/ALASKA NATIVE", "MULTIPLE RACE/ETHNICITY", 
+                                  "NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDER",
+                                  "OTHER", "PATIENT DECLINED TO ANSWER", "PORTUGUESE", 
+                                  "SOUTH AMERICAN", "UNABLE TO OBTAIN", "UNKNOWN")
+    ),
     los_long = los >= 2) |>
   select(
     -subject_id, -hadm_id, -stay_id, -intime, -outtime, -admittime, 
@@ -247,24 +258,13 @@ mimic_icu_cohort1 <- mimic_icu_cohort |>
          hospital_expire_flag, gender, dod, sodium, chloride, creatinine, 
          potassium, glucose, hematocrit, wbc, bicarbonate, temperature_fahrenheit, 
          non_invasive_blood_pressure_diastolic, respiratory_rate, 
-         non_invasive_blood_pressure_systolic, heart_rate, age_intime, los_long)
-
-summary_tbl <- mimic_icu_cohort1 |>
+         non_invasive_blood_pressure_systolic, heart_rate, age_intime, los_long) |>
   tbl_summary(
     by = los_long
     )
 
-summary_tbl
+mimic_icu_cohort1
 ```
-
-
-
-
-
-
-
-
-
 
 ### Q1.9 Save the final tibble
 
