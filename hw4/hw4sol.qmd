@@ -240,7 +240,14 @@ mimic_icu_cohort1 <- mimic_icu_cohort |>
     -dischtime, -deathtime, -admit_provider_id, -edregtime, -edouttime, 
     -anchor_age, -anchor_year, -anchor_year_group
     ) |>
-  rename(age_intime = intime_age)
+  rename(age_intime = intime_age) |>
+  mutate(race = fct_relevel(race, "ASIAN", "BLACK", "HISPANIC", "WHITE", "Other")) |>
+  select(first_careunit, last_careunit, los, admission_type, admission_location, 
+         discharge_location, insurance, language, marital_status, race, 
+         hospital_expire_flag, gender, dod, sodium, chloride, creatinine, 
+         potassium, glucose, hematocrit, wbc, bicarbonate, temperature_fahrenheit, 
+         non_invasive_blood_pressure_diastolic, respiratory_rate, 
+         non_invasive_blood_pressure_systolic, heart_rate, age_intime, los_long)
 
 summary_tbl <- mimic_icu_cohort1 |>
   tbl_summary(
