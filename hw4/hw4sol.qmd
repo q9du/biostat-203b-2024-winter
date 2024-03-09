@@ -221,7 +221,7 @@ Hint: Below is a numerical summary of my tibble after preprocessing:
 ```{r}
 library(forcats)
 
-mimic_icu_cohort1 <- mimic_icu_cohort |>
+mimic_icu_cohort <- mimic_icu_cohort |>
   mutate(
     first_careunit = fct_lump(first_careunit, n = 4, other_level = "Other"),
     last_careunit = fct_lump(last_careunit, n = 4, other_level = "Other"),
@@ -263,7 +263,7 @@ mimic_icu_cohort1 <- mimic_icu_cohort |>
     by = los_long
     )
 
-mimic_icu_cohort1
+mimic_icu_cohort
 ```
 
 ### Q1.9 Save the final tibble
@@ -290,3 +290,137 @@ Although it is not a good practice to add big data files to git, for grading pur
 ## Q2. Shiny app
 
 Develop a Shiny app for exploring the ICU cohort data created in Q1. The app should reside in the `mimiciv_shiny` folder. The app should contain at least two tabs. One tab provides easy access to the graphical and numerical summaries of variables (demographics, lab measurements, vitals) in the ICU cohort. The other allows user to choose a specific patient in the cohort and display the patient's ADT and ICU stay information as we did in Q1 of HW3.
+
+#### Answer
+
+```{r}
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(gt)
+library(gtsummary)
+
+mimic_icu_cohort <- read_rds("mimiciv_shiny/mimic_icu_cohort.rds")
+
+ui <- fluidPage(
+    titlePanel("ICU Cohort Data Exploration"),
+    navbarPage(
+        "Navigation",
+        tabPanel(
+            "Patient Characteristics",
+            sidebarPanel(
+                selectInput("variable", "Choose a variable:", 
+                            choices = c("Age at intime", "Gender", "Race", "First care unit", "Last care unit", 
+                                        "Admission type", "Insurance", "Language", "Marital status", 
+                                        "Heart rate", "Temperature", "Respiratory rate")),
+                checkboxInput("removeOutliers", "Remove outliers in IQR method for measurements", FALSE)
+            ),
+            mainPanel(
+                plotOutput("varPlot")
+            )
+        ),
+        tabPanel(
+            "Patient's ADT and ICU Stay Information",
+            sidebarPanel(
+                selectInput("patientID", "Select Patient ID:",
+                            choices = unique(mimic_icu_cohort$subject_id))
+            ),
+            mainPanel(
+                DT::dataTableOutput("patientDetails"),
+                plotOutput("adtPlot")
+            )
+        )
+    )
+)
+
+server <- function(input, output, session) {
+
+    output$varPlot <- renderPlot({
+        data <- mimic_icu_cohort %>%
+            select(!!sym(input$variable)) %>% 
+            na.omit()
+
+        ggplot() +
+        geom_segment(data = sid_adt %>%
+                       filter(eventtype != "discharge"),
+                     aes(x = intime, 
+                         xend = outtime, 
+                         y = "ADT", 
+                         yend = "ADT", 
+                         color = careunit,
+                         linewidth = str_detect(careunit, "(ICU|CCU)"))) +
+        scale_linewidth_discrete(guide = "none") +
+        geom_point(data = sid_lab, 
+                   aes(x = charttime, 
+                       y = "Lab"), 
+                   shape = 3) + 
+        geom_point(data = sid_procedure, 
+                   aes(x = as.POSIXct(chartdate), 
+                       y = "Procedure",
+                       shape = procedures$long_title)) + 
+        scale_shape_manual(values = c(1:10),
+                           labels = unique(procedures$long_title)) + 
+        labs(x = "Calendar Time", y = "",
+             title = str_c("Patient ", input$patient_id),
+             subtitle = "Patient ADT and Medical Data") +
+        guides(color = guide_legend(title = "Care Unit"),
+               shape = guide_legend(title = "Procedure", ncol = 2)) +
+        theme(legend.position = "bottom",
+              legend.box = "vertical",
+              legend.text = element_text(size = 5),
+              legend.title = element_text(size = 7)) + 
+        scale_y_discrete(limits = c("Procedure", "Lab", "ADT"))
+    })
+
+    output$patientDetails <- DT::renderDataTable({
+        mimic_icu_cohort %>%
+            filter(subject_id == input$patientID) %>%
+            select(subject_id, gender, age_at_intime, race, first_careunit)
+    })
+
+    output$adtPlot <- renderPlot({
+       
+        adt_data <- data.frame(
+            start = as.POSIXct(c("2021-01-01", "2021-01-03")),
+            end = as.POSIXct(c("2021-01-02", "2021-01-04")),
+            type = c("ICU", "Ward"),
+            stringsAsFactors = FALSE
+        )
+
+        ggplot() +
+        geom_segment(data = sid_adt %>%
+                       filter(eventtype != "discharge"),
+                     aes(x = intime, 
+                         xend = outtime, 
+                         y = "ADT", 
+                         yend = "ADT", 
+                         color = careunit,
+                         linewidth = str_detect(careunit, "(ICU|CCU)"))) +
+        scale_linewidth_discrete(guide = "none") +
+        geom_point(data = sid_lab, 
+                   aes(x = charttime, 
+                       y = "Lab"), 
+                   shape = 3) + 
+        geom_point(data = sid_procedure, 
+                   aes(x = as.POSIXct(chartdate), 
+                       y = "Procedure",
+                       shape = procedures$long_title)) + 
+        scale_shape_manual(values = c(1:10),
+                           labels = unique(procedures$long_title)) + 
+        labs(x = "Calendar Time", y = "",
+             title = str_c("Patient ", input$patient_id),
+             subtitle = "Patient ADT and Medical Data") +
+        guides(color = guide_legend(title = "Care Unit"),
+               shape = guide_legend(title = "Procedure", ncol = 2)) +
+        theme(legend.position = "bottom",
+              legend.box = "vertical",
+              legend.text = element_text(size = 5),
+              legend.title = element_text(size = 7)) + 
+        scale_y_discrete(limits = c("Procedure", "Lab", "ADT"))
+    })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
