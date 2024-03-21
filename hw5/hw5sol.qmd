@@ -444,5 +444,3 @@ The classification trees, random forest, and boosting tree were used to predict 
 
 As performance increases from Decision Tree to Random Forest to Boosting Tree to Model Stacking, interpretability decreases.
 
-
-
