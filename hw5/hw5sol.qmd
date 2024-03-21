@@ -79,8 +79,13 @@ test_set <- testing(data_split)
 ```{r}
 mimic_recipe <- 
   recipe(los_long ~ ., data = train_set) |>
-  step_impute_mean(sodium, chloride, creatinine, potassium, glucose, hematocrit, wbc, bicarbonate, temperature_fahrenheit, non_invasive_blood_pressure_diastolic, respiratory_rate, non_invasive_blood_pressure_systolic, heart_rate, age_intime) |>
-  step_impute_mode(first_careunit, admission_type, admission_location, insurance, language, marital_status, race, gender) |>
+  step_impute_mean(sodium, chloride, creatinine, potassium, glucose, 
+                   hematocrit, wbc, bicarbonate, temperature_fahrenheit, 
+                   non_invasive_blood_pressure_diastolic, respiratory_rate, 
+                   non_invasive_blood_pressure_systolic, 
+                   heart_rate, age_intime) |>
+  step_impute_mode(first_careunit, admission_type, admission_location, 
+                   insurance, language, marital_status, race, gender) |>
   step_naomit(all_predictors()) |>
   step_dummy(all_nominal_predictors()) |>
   step_zv(all_numeric_predictors()) |>
@@ -194,8 +199,13 @@ test_set <- testing(data_split)
 ```{r}
 mimic_recipe <- 
   recipe(los_long ~ ., data = train_set) |>
-  step_impute_mean(sodium, chloride, creatinine, potassium, glucose, hematocrit, wbc, bicarbonate, temperature_fahrenheit, non_invasive_blood_pressure_diastolic, respiratory_rate, non_invasive_blood_pressure_systolic, heart_rate, age_intime) |>
-  step_impute_mode(first_careunit, admission_type, admission_location, insurance, language, marital_status, race, gender) |>
+  step_impute_mean(sodium, chloride, creatinine, potassium, glucose, 
+                   hematocrit, wbc, bicarbonate, temperature_fahrenheit, 
+                   non_invasive_blood_pressure_diastolic, respiratory_rate, 
+                   non_invasive_blood_pressure_systolic, 
+                   heart_rate, age_intime) |>
+  step_impute_mode(first_careunit, admission_type, admission_location, 
+                   insurance, language, marital_status, race, gender) |>
   step_zv(all_numeric_predictors())
 mimic_recipe
 
@@ -296,8 +306,13 @@ test_set <- testing(data_split)
 ```{r}
 mimic_recipe <- 
   recipe(los_long ~ ., data = train_set) |>
-  step_impute_mean(sodium, chloride, creatinine, potassium, glucose, hematocrit, wbc, bicarbonate, temperature_fahrenheit, non_invasive_blood_pressure_diastolic, respiratory_rate, non_invasive_blood_pressure_systolic, heart_rate, age_intime) |>
-  step_impute_mode(first_careunit, admission_type, admission_location, insurance, language, marital_status, race, gender) |>
+  step_impute_mean(sodium, chloride, creatinine, potassium, glucose, 
+                   hematocrit, wbc, bicarbonate, temperature_fahrenheit, 
+                   non_invasive_blood_pressure_diastolic, respiratory_rate, 
+                   non_invasive_blood_pressure_systolic, 
+                   heart_rate, age_intime) |>
+  step_impute_mode(first_careunit, admission_type, admission_location, 
+                   insurance, language, marital_status, race, gender) |>
   step_dummy(all_nominal_predictors()) |>
   step_zv(all_numeric_predictors())
 mimic_recipe
@@ -412,6 +427,22 @@ yardstick::accuracy(
   estimate = .pred_class
   )
 ```
+
+# Summary
+
+Decision Tree: ROC AUC = 0.593, Accuracy = 57.67%
+Random Forest: ROC AUC = 0.644, Accuracy = 60.38%
+Boosting Tree: ROC AUC = 0.650, Accuracy = 60.61%
+
+The Boosting Tree had the highest performance, followed by the Random Forest, with the Decision Tree performing the lowest.
+
+Model Stacking: ROC AUC = 0.656, Accuracy = 61.20%
+
+The Model Stacking showed the best results, indicating superior performance in predicting ICU stay lengths.
+
+The classification trees, random forest, and boosting tree were used to predict whether a patient's ICU stay will be longer than 2 days. The most important features in predicting long ICU stays were the last lab measurements before the ICU stay, and first vital measurements during ICU stay. The Model Stacking showed the best results, indicating superior performance in predicting ICU stay lengths.
+
+As performance increases from Decision Tree to Random Forest to Boosting Tree to Model Stacking, interpretability decreases.
 
 
 
