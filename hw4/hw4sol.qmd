@@ -246,22 +246,14 @@ mimic_icu_cohort <- mimic_icu_cohort |>
                                   "SOUTH AMERICAN", "UNABLE TO OBTAIN", "UNKNOWN")
     ),
     los_long = los >= 2) |>
-  select(
-    -subject_id, -hadm_id, -stay_id, -intime, -outtime, -admittime, 
-    -dischtime, -deathtime, -admit_provider_id, -edregtime, -edouttime, 
-    -anchor_age, -anchor_year, -anchor_year_group
-    ) |>
   rename(age_intime = intime_age) |>
   mutate(race = fct_relevel(race, "ASIAN", "BLACK", "HISPANIC", "WHITE", "Other")) |>
-  select(first_careunit, last_careunit, los, admission_type, admission_location, 
+  select(subject_id, hadm_id, stay_id, first_careunit, los, admission_type, admission_location, 
          discharge_location, insurance, language, marital_status, race, 
          hospital_expire_flag, gender, dod, sodium, chloride, creatinine, 
          potassium, glucose, hematocrit, wbc, bicarbonate, temperature_fahrenheit, 
          non_invasive_blood_pressure_diastolic, respiratory_rate, 
-         non_invasive_blood_pressure_systolic, heart_rate, age_intime, los_long) |>
-  tbl_summary(
-    by = los_long
-    )
+         non_invasive_blood_pressure_systolic, heart_rate, age_intime, los_long)
 
 mimic_icu_cohort
 ```

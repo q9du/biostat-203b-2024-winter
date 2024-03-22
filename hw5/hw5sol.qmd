@@ -66,14 +66,22 @@ set.seed(203)
 
 mimic_icu_cohort <- mimic_icu_cohort |>
   arrange(subject_id, hadm_id, stay_id) |>
-  mutate(
-    los_long = as.factor(los_long)
-    ) |>
+  mutate(los_long = as.factor(los_long)) |>
   select(
-    -dod, -1, -2, -3, -los, -discharge_location, -hospital_expire_flag
+    -dod, 
+    -1, 
+    -2, 
+    -3, 
+    -los, 
+    -discharge_location, 
+    -hospital_expire_flag
     )
 
-data_split <- initial_split(mimic_icu_cohort, strata = "los_long", prop = 0.5)
+data_split <- initial_split(
+  mimic_icu_cohort,
+  strata = "los_long",
+  prop = 0.5
+  )
 train_set <- training(data_split)
 test_set <- testing(data_split)
 ```
@@ -81,13 +89,31 @@ test_set <- testing(data_split)
 ```{r}
 mimic_recipe <- 
   recipe(los_long ~ ., data = train_set) |>
-  step_impute_mean(sodium, chloride, creatinine, potassium, glucose, 
-                   hematocrit, wbc, bicarbonate, temperature_fahrenheit, 
-                   non_invasive_blood_pressure_diastolic, respiratory_rate, 
-                   non_invasive_blood_pressure_systolic, 
-                   heart_rate, age_intime) |>
-  step_impute_mode(first_careunit, admission_type, admission_location, 
-                   insurance, language, marital_status, race, gender) |>
+  step_impute_mean(
+    sodium, 
+    chloride, 
+    creatinine, 
+    potassium, 
+    glucose,
+    hematocrit, 
+    wbc, 
+    bicarbonate, 
+    temperature_fahrenheit,
+    non_invasive_blood_pressure_diastolic, 
+    respiratory_rate,
+    non_invasive_blood_pressure_systolic,
+    heart_rate, age_intime
+    ) |>
+  step_impute_mode(
+    first_careunit, 
+    admission_type, 
+    admission_location,
+    insurance, 
+    language, 
+    marital_status, 
+    race, 
+    gender
+    ) |>
   step_naomit(all_predictors()) |>
   step_dummy(all_nominal_predictors()) |>
   step_zv(all_numeric_predictors()) |>
@@ -129,10 +155,14 @@ tree_fit %>%
   print(width = Inf) %>%
   filter(.metric == "roc_auc") %>%
   mutate(tree_depth = as.factor(tree_depth)) %>%
-  ggplot(mapping = aes(x = cost_complexity, y = mean, color = tree_depth)) +
+  ggplot(mapping = aes(x = cost_complexity,
+                       y = mean,
+                       color = tree_depth)) +
   geom_point() + 
   geom_line() + 
-  labs(x = "cost_complexity", y = "CV ROC AUC", color = "tree_depth") 
+  labs(x = "cost_complexity", 
+       y = "CV ROC AUC", 
+       color = "tree_depth") 
 
 tree_fit %>%
   show_best("roc_auc")
@@ -190,10 +220,20 @@ mimic_icu_cohort <- mimic_icu_cohort |>
     los_long = as.factor(los_long)
     ) |>
   select(
-    -dod, -1, -2, -3, -los, -discharge_location, -hospital_expire_flag
+    -dod, 
+    -1, 
+    -2, 
+    -3, 
+    -los, 
+    -discharge_location, 
+    -hospital_expire_flag
     )
 
-data_split <- initial_split(mimic_icu_cohort, strata = "los_long", prop = 0.5)
+data_split <- initial_split(
+  mimic_icu_cohort, 
+  strata = "los_long", 
+  prop = 0.5
+  )
 train_set <- training(data_split)
 test_set <- testing(data_split)
 ```
@@ -201,13 +241,32 @@ test_set <- testing(data_split)
 ```{r}
 mimic_recipe <- 
   recipe(los_long ~ ., data = train_set) |>
-  step_impute_mean(sodium, chloride, creatinine, potassium, glucose, 
-                   hematocrit, wbc, bicarbonate, temperature_fahrenheit, 
-                   non_invasive_blood_pressure_diastolic, respiratory_rate, 
-                   non_invasive_blood_pressure_systolic, 
-                   heart_rate, age_intime) |>
-  step_impute_mode(first_careunit, admission_type, admission_location, 
-                   insurance, language, marital_status, race, gender) |>
+  step_impute_mean(
+    sodium, 
+    chloride, 
+    creatinine, 
+    potassium, 
+    glucose,
+    hematocrit, 
+    wbc, 
+    bicarbonate, 
+    temperature_fahrenheit,
+    non_invasive_blood_pressure_diastolic, 
+    respiratory_rate,
+    non_invasive_blood_pressure_systolic,
+    heart_rate, 
+    age_intime
+    ) |>
+  step_impute_mode(
+    first_careunit, 
+    admission_type, 
+    admission_location,
+    insurance, 
+    language, 
+    marital_status, 
+    race, 
+    gender
+    ) |>
   step_zv(all_numeric_predictors())
 mimic_recipe
 
@@ -250,7 +309,9 @@ rf_fit %>%
   print(width = Inf) %>%
   filter(.metric == "roc_auc") %>%
   mutate(mtry = as.factor(mtry)) %>%
-  ggplot(mapping = aes(x = trees, y = mean, color = mtry)) +
+  ggplot(mapping = aes(x = trees,
+                       y = mean,
+                       color = mtry)) +
   # geom_point() + 
   geom_line() + 
   labs(x = "Num. of Trees", y = "CV AUC")
@@ -297,10 +358,20 @@ mimic_icu_cohort <- mimic_icu_cohort |>
     los_long = as.factor(los_long)
     ) |>
   select(
-    -dod, -1, -2, -3, -los, -discharge_location, -hospital_expire_flag
+    -dod, 
+    -1, 
+    -2, 
+    -3, 
+    -los, 
+    -discharge_location, 
+    -hospital_expire_flag
     )
 
-data_split <- initial_split(mimic_icu_cohort, strata = "los_long", prop = 0.5)
+data_split <- initial_split(
+  mimic_icu_cohort, 
+  strata = "los_long", 
+  prop = 0.5
+  )
 train_set <- training(data_split)
 test_set <- testing(data_split)
 ```
@@ -308,13 +379,32 @@ test_set <- testing(data_split)
 ```{r}
 mimic_recipe <- 
   recipe(los_long ~ ., data = train_set) |>
-  step_impute_mean(sodium, chloride, creatinine, potassium, glucose, 
-                   hematocrit, wbc, bicarbonate, temperature_fahrenheit, 
-                   non_invasive_blood_pressure_diastolic, respiratory_rate, 
-                   non_invasive_blood_pressure_systolic, 
-                   heart_rate, age_intime) |>
-  step_impute_mode(first_careunit, admission_type, admission_location, 
-                   insurance, language, marital_status, race, gender) |>
+  step_impute_mean(
+    sodium, 
+    chloride, 
+    creatinine, 
+    potassium, 
+    glucose,
+    hematocrit, 
+    wbc, 
+    bicarbonate, 
+    temperature_fahrenheit,
+    non_invasive_blood_pressure_diastolic, 
+    respiratory_rate,
+    non_invasive_blood_pressure_systolic,
+    heart_rate, 
+    age_intime
+    ) |>
+  step_impute_mode(
+    first_careunit, 
+    admission_type, 
+    admission_location,
+    insurance, 
+    language, 
+    marital_status, 
+    race, 
+    gender
+    ) |>
   step_dummy(all_nominal_predictors()) |>
   step_zv(all_numeric_predictors())
 mimic_recipe
@@ -359,7 +449,9 @@ gb_fit %>%
   print(width = Inf) %>%
   filter(.metric == "roc_auc") %>%
   mutate(tree_depth = as.factor(tree_depth)) %>%
-  ggplot(mapping = aes(x = learn_rate, y = mean, color = tree_depth)) +
+  ggplot(mapping = aes(x = learn_rate, 
+                       y = mean, 
+                       color = tree_depth)) +
   geom_point() +
   geom_line() +
   labs(x = "Learning Rate", y = "CV AUC") +
