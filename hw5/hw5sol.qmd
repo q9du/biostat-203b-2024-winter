@@ -60,7 +60,7 @@ library(xgboost)
 library(doMC)
 registerDoMC(cores = 8)
 
-mimic_icu_cohort <- read_rds("mimiciv_shiny/mimic_icu_cohort.rds")
+mimic_icu_cohort <- read_rds("mimiciv_shiny/mimiciv_icu_cohort.rds")
 
 set.seed(203)
 
