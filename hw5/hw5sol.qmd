@@ -1,0 +1,541 @@
+---
+title: "Biostat 203B Homework 5"
+subtitle: Due Mar 22 @ 11:59PM
+author: "Qianhui Du, UID: 006332140"
+format:
+  html:
+    theme: cosmo
+    embed-resources: true
+    number-sections: false
+    toc: true
+    toc-depth: 4
+    toc-location: left
+    code-fold: false
+---
+
+## Predicting ICU duration
+
+Using the ICU cohort `mimiciv_icu_cohort.rds` you built in Homework 4, develop at least three machine learning approaches (logistic regression with enet regularization, random forest, boosting, SVM, MLP, etc) plus a model stacking approach for predicting whether a patient's ICU stay will be longer than 2 days. You should use the `los_long` variable as the outcome. You algorithms can use patient demographic information (gender, age at ICU `intime`, marital status, race), ICU admission information (first care unit), the last lab measurements before the ICU stay, and first vital measurements during ICU stay as features. You are welcome to use any feature engineering techniques you think are appropriate; but make sure to not use features that are not available at an ICU stay's `intime`. For instance, `last_careunit` cannot be used in your algorithms. 
+
+1. Data preprocessing and feature engineering.
+
+2. Partition data into 50% training set and 50% test set. Stratify partitioning according to `los_long`. For grading purpose, sort the data by `subject_id`, `hadm_id`, and `stay_id` and use the seed `203` for the initial data split. Below is the sample code.
+```{r}
+#| eval: false
+set.seed(203)
+
+# sort
+mimiciv_icu_cohort <- mimiciv_icu_cohort |>
+  arrange(subject_id, hadm_id, stay_id)
+
+data_split <- initial_split(
+  mimiciv_icu_cohort, 
+  # stratify by los_long
+  strata = "los_long", 
+  prop = 0.5
+  )
+```
+
+3. Train and tune the models using the training set.
+
+4. Compare model classification performance on the test set. Report both the area under ROC curve and accuracy for each machine learning algorithm and the model stacking. Interpret the results. What are the most important features in predicting long ICU stays? How do the models compare in terms of performance and interpretability?
+
+#### Answer
+
+##### Classification Trees
+
+```{r}
+sessionInfo()
+```
+
+```{r}
+library(GGally)
+library(gtsummary)
+library(keras)
+library(ranger)
+library(stacks)
+library(tidyverse)
+library(tidymodels)
+library(xgboost)
+library(doMC)
+registerDoMC(cores = 8)
+
+mimic_icu_cohort <- read_rds("mimiciv_shiny/mimiciv_icu_cohort.rds")
+
+set.seed(203)
+
+mimic_icu_cohort <- mimic_icu_cohort |>
+  arrange(subject_id, hadm_id, stay_id) |>
+  mutate(los_long = as.factor(los_long)) |>
+  select(
+    -dod, 
+    -1, 
+    -2, 
+    -3, 
+    -los, 
+    -discharge_location, 
+    -hospital_expire_flag
+    )
+
+data_split <- initial_split(
+  mimic_icu_cohort,
+  strata = "los_long",
+  prop = 0.5
+  )
+train_set <- training(data_split)
+test_set <- testing(data_split)
+```
+
+```{r}
+mimic_recipe <- 
+  recipe(los_long ~ ., data = train_set) |>
+  step_impute_mean(
+    sodium, 
+    chloride, 
+    creatinine, 
+    potassium, 
+    glucose,
+    hematocrit, 
+    wbc, 
+    bicarbonate, 
+    temperature_fahrenheit,
+    non_invasive_blood_pressure_diastolic, 
+    respiratory_rate,
+    non_invasive_blood_pressure_systolic,
+    heart_rate, age_intime
+    ) |>
+  step_impute_mode(
+    first_careunit, 
+    admission_type, 
+    admission_location,
+    insurance, 
+    language, 
+    marital_status, 
+    race, 
+    gender
+    ) |>
+  step_naomit(all_predictors()) |>
+  step_dummy(all_nominal_predictors()) |>
+  step_zv(all_numeric_predictors()) |>
+  step_normalize(all_numeric_predictors())
+mimic_recipe
+  
+classtree_mod <- decision_tree(
+  cost_complexity = tune(),
+  tree_depth = tune(),
+  min_n = 5,
+  mode = "classification",
+  engine = "rpart"
+  ) 
+  
+tree_wf <- workflow() %>%
+  add_recipe(mimic_recipe) %>%
+  add_model(classtree_mod) 
+tree_wf
+
+tree_grid <- grid_regular(cost_complexity(),
+                          tree_depth(),
+                          levels = c(100,5))
+
+set.seed(203)
+
+folds <- vfold_cv(train_set, v = 5)
+folds
+
+tree_fit <- tree_wf %>%
+  tune_grid(
+    resamples = folds,
+    grid = tree_grid,
+    control = control_stack_grid()
+    )
+tree_fit
+
+tree_fit %>%
+  collect_metrics() %>%
+  print(width = Inf) %>%
+  filter(.metric == "roc_auc") %>%
+  mutate(tree_depth = as.factor(tree_depth)) %>%
+  ggplot(mapping = aes(x = cost_complexity,
+                       y = mean,
+                       color = tree_depth)) +
+  geom_point() + 
+  geom_line() + 
+  labs(x = "cost_complexity", 
+       y = "CV ROC AUC", 
+       color = "tree_depth") 
+
+tree_fit %>%
+  show_best("roc_auc")
+
+best_tree <- tree_fit %>%
+  select_best("roc_auc")
+best_tree
+
+final_wf <- tree_wf %>%
+  finalize_workflow(best_tree)
+final_wf
+
+final_fit <- 
+  final_wf %>%
+  last_fit(data_split)
+final_fit
+
+final_fit %>% 
+  collect_metrics()
+
+library(rpart.plot)
+final_tree <- extract_workflow(final_fit)
+final_tree
+
+final_tree %>%
+  extract_fit_engine() %>%
+  rpart.plot(roundint = FALSE)
+
+library(vip)
+
+final_tree %>% 
+  extract_fit_parsnip() %>% 
+  vip()
+```
+
+##### Random Forest for Classification
+
+```{r}
+library(GGally)
+library(gtsummary)
+library(keras)
+library(ranger)
+library(stacks)
+library(tidyverse)
+library(tidymodels)
+library(xgboost)
+
+mimic_icu_cohort <- read_rds("mimiciv_shiny/mimic_icu_cohort.rds")
+
+set.seed(203)
+
+mimic_icu_cohort <- mimic_icu_cohort |>
+  arrange(subject_id, hadm_id, stay_id) |>
+  mutate(
+    los_long = as.factor(los_long)
+    ) |>
+  select(
+    -dod, 
+    -1, 
+    -2, 
+    -3, 
+    -los, 
+    -discharge_location, 
+    -hospital_expire_flag
+    )
+
+data_split <- initial_split(
+  mimic_icu_cohort, 
+  strata = "los_long", 
+  prop = 0.5
+  )
+train_set <- training(data_split)
+test_set <- testing(data_split)
+```
+
+```{r}
+mimic_recipe <- 
+  recipe(los_long ~ ., data = train_set) |>
+  step_impute_mean(
+    sodium, 
+    chloride, 
+    creatinine, 
+    potassium, 
+    glucose,
+    hematocrit, 
+    wbc, 
+    bicarbonate, 
+    temperature_fahrenheit,
+    non_invasive_blood_pressure_diastolic, 
+    respiratory_rate,
+    non_invasive_blood_pressure_systolic,
+    heart_rate, 
+    age_intime
+    ) |>
+  step_impute_mode(
+    first_careunit, 
+    admission_type, 
+    admission_location,
+    insurance, 
+    language, 
+    marital_status, 
+    race, 
+    gender
+    ) |>
+  step_zv(all_numeric_predictors())
+mimic_recipe
+
+rf_mod <- 
+  rand_forest(
+    mode = "classification",
+    mtry = tune(),
+    trees = tune()
+  ) %>% 
+  set_engine("ranger")
+rf_mod
+
+rf_wf <- workflow() %>%
+  add_recipe(mimic_recipe) %>%
+  add_model(rf_mod)
+rf_wf
+
+rf_grid <- grid_regular(
+  trees(range = c(100L, 300L)), 
+  mtry(range = c(1L, 5L)),
+  levels = c(3, 5)
+  )
+rf_grid
+
+set.seed(203)
+
+folds <- vfold_cv(train_set, v = 5)
+folds
+
+rf_fit <- rf_wf %>%
+  tune_grid(
+    resamples = folds,
+    grid = rf_grid,
+    control = control_stack_grid()
+    )
+rf_fit
+
+rf_fit %>%
+  collect_metrics() %>%
+  print(width = Inf) %>%
+  filter(.metric == "roc_auc") %>%
+  mutate(mtry = as.factor(mtry)) %>%
+  ggplot(mapping = aes(x = trees,
+                       y = mean,
+                       color = mtry)) +
+  # geom_point() + 
+  geom_line() + 
+  labs(x = "Num. of Trees", y = "CV AUC")
+
+rf_fit %>%
+  show_best("roc_auc")
+
+best_rf <- rf_fit %>%
+  select_best("roc_auc")
+best_rf
+
+final_wf <- rf_wf %>%
+  finalize_workflow(best_rf)
+final_wf
+
+final_fit <- 
+  final_wf %>%
+  last_fit(data_split)
+final_fit
+
+final_fit %>% 
+  collect_metrics()
+```
+
+##### Boosting Tree for Classification
+
+```{r}
+library(GGally)
+library(gtsummary)
+library(keras)
+library(ranger)
+library(stacks)
+library(tidyverse)
+library(tidymodels)
+library(xgboost)
+
+mimic_icu_cohort <- read_rds("mimiciv_shiny/mimic_icu_cohort.rds")
+
+set.seed(203)
+
+mimic_icu_cohort <- mimic_icu_cohort |>
+  arrange(subject_id, hadm_id, stay_id) |>
+  mutate(
+    los_long = as.factor(los_long)
+    ) |>
+  select(
+    -dod, 
+    -1, 
+    -2, 
+    -3, 
+    -los, 
+    -discharge_location, 
+    -hospital_expire_flag
+    )
+
+data_split <- initial_split(
+  mimic_icu_cohort, 
+  strata = "los_long", 
+  prop = 0.5
+  )
+train_set <- training(data_split)
+test_set <- testing(data_split)
+```
+
+```{r}
+mimic_recipe <- 
+  recipe(los_long ~ ., data = train_set) |>
+  step_impute_mean(
+    sodium, 
+    chloride, 
+    creatinine, 
+    potassium, 
+    glucose,
+    hematocrit, 
+    wbc, 
+    bicarbonate, 
+    temperature_fahrenheit,
+    non_invasive_blood_pressure_diastolic, 
+    respiratory_rate,
+    non_invasive_blood_pressure_systolic,
+    heart_rate, 
+    age_intime
+    ) |>
+  step_impute_mode(
+    first_careunit, 
+    admission_type, 
+    admission_location,
+    insurance, 
+    language, 
+    marital_status, 
+    race, 
+    gender
+    ) |>
+  step_dummy(all_nominal_predictors()) |>
+  step_zv(all_numeric_predictors())
+mimic_recipe
+
+gb_mod <- 
+  boost_tree(
+    mode = "classification",
+    trees = 1000, 
+    tree_depth = tune(),
+    learn_rate = tune()
+  ) %>% 
+  set_engine("xgboost")
+gb_mod
+
+gb_wf <- workflow() %>%
+  add_recipe(mimic_recipe) %>%
+  add_model(gb_mod)
+gb_wf
+
+gb_grid <- grid_regular(
+  tree_depth(range = c(1L, 3L)),
+  learn_rate(range = c(-5, 2), trans = log10_trans()),
+  levels = c(3, 10)
+  )
+gb_grid
+
+set.seed(203)
+
+folds <- vfold_cv(train_set, v = 5)
+folds
+
+gb_fit <- gb_wf %>%
+  tune_grid(
+    resamples = folds,
+    grid = gb_grid,
+    control = control_stack_grid()
+    )
+gb_fit
+
+gb_fit %>%
+  collect_metrics() %>%
+  print(width = Inf) %>%
+  filter(.metric == "roc_auc") %>%
+  mutate(tree_depth = as.factor(tree_depth)) %>%
+  ggplot(mapping = aes(x = learn_rate, 
+                       y = mean, 
+                       color = tree_depth)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Learning Rate", y = "CV AUC") +
+  scale_x_log10()
+
+gb_fit %>%
+  show_best("roc_auc")
+
+best_gb <- gb_fit %>%
+  select_best("roc_auc")
+best_gb
+
+final_wf <- gb_wf %>%
+  finalize_workflow(best_gb)
+final_wf
+
+final_fit <- 
+  final_wf %>%
+  last_fit(data_split)
+final_fit
+
+final_fit %>% 
+  collect_metrics()
+```
+
+##### Model Stacking
+
+```{r}
+mimic_model_st <- 
+  stacks() |>
+  add_candidates(tree_fit) |>
+  add_candidates(rf_fit) |>
+  add_candidates(gb_fit) |>
+  blend_predictions(
+    penalty = 10^(-6:2),
+    metrics = c("roc_auc", "accuracy")
+    ) |>
+  fit_members()
+
+mimic_model_st
+
+autoplot(mimic_model_st)
+
+autoplot(mimic_model_st, type = "members")
+
+autoplot(mimic_model_st, type = "weights")
+
+collect_parameters(mimic_model_st, "rf_fit")
+
+mimic_pred <- test_set %>%
+  bind_cols(predict(mimic_model_st, ., type = "prob")) %>%
+  print(width = Inf)
+
+yardstick::roc_auc(
+  mimic_pred,
+  truth = los_long,
+  contains(".pred_FALSE")
+  )
+
+mimic_acc <- test_set %>%
+  bind_cols(predict(mimic_model_st, new_data = test_set)) %>%
+  print(width = Inf)
+
+yardstick::accuracy(
+  mimic_acc,
+  truth = los_long,
+  estimate = .pred_class
+  )
+```
+
+##### Summary
+
+Decision Tree: ROC AUC = 0.593, Accuracy = 57.67%
+Random Forest: ROC AUC = 0.644, Accuracy = 60.38%
+Boosting Tree: ROC AUC = 0.650, Accuracy = 60.61%
+
+The Boosting Tree had the highest performance, followed by the Random Forest, with the Decision Tree performing the lowest.
+
+Model Stacking: ROC AUC = 0.656, Accuracy = 61.20%
+
+The Model Stacking showed the best results, indicating superior performance in predicting ICU stay lengths.
+
+The classification trees, random forest, and boosting tree were used to predict whether a patient's ICU stay will be longer than 2 days. The most important features in predicting long ICU stays were the last lab measurements before the ICU stay, and first vital measurements during ICU stay. The Model Stacking showed the best results, indicating superior performance in predicting ICU stay lengths.
+
+As performance increases from Decision Tree to Random Forest to Boosting Tree to Model Stacking, interpretability decreases.
+
+
